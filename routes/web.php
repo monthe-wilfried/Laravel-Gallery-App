@@ -16,3 +16,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+Auth::routes();
+
+Route::get('/home', 'PhotoController@index')->name('home');
+Route::get('/album', 'PhotoController@index')->name('album.index');
+Route::post('/album/store', 'PhotoController@store')->name('album.store');
