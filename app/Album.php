@@ -8,7 +8,8 @@ class Album extends Model
 {
     //
     protected $fillable = [
-        'name'
+        'name',
+        'cover_image'
     ];
 
 public function photos(){

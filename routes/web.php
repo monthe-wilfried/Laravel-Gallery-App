@@ -13,12 +13,19 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', 'PhotoController@album');
+Route::get('/album/{id}', 'PhotoController@show')->name('album.show');
 
 Auth::routes();
 
-Route::get('/home', 'PhotoController@index')->name('home');
-Route::get('/album', 'PhotoController@index')->name('album.index');
-Route::post('/album/store', 'PhotoController@store')->name('album.store');
+Route::group(['middleware'=>'auth'], function(){
+    Route::get('/home', 'PhotoController@index')->name('home');
+    Route::get('/album', 'PhotoController@index')->name('album.index');
+    Route::post('/album/store', 'PhotoController@store')->name('album.store');
+    Route::post('/album/add/photo', 'PhotoController@addPhoto')->name('album.add.photo');
+    Route::post('/album/cover', 'PhotoController@albumCover')->name('album.cover');
+    Route::post('/photo/delete/{id}', 'PhotoController@destroy')->name('photo.delete');
+});
+
+
+
