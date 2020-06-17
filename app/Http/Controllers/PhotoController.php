@@ -19,19 +19,10 @@ class PhotoController extends Controller
     public function index()
     {
         //
-        $photos = Photo::all();
-        return view('home', compact('photos'));
+        $albums = Album::latest()->get();
+        return view('home', compact('albums'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        //
-    }
 
     /**
      * Store a newly created resource in storage.
@@ -39,30 +30,31 @@ class PhotoController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\RedirectResponse
      */
-    public function store(Request $request)
+    public function photosStore(Request $request)
     {
-        $this->validate($request, [
-            'name' => 'required|unique:albums|min:3|max:50'
-        ]);
-
         $inputs = array();
         $path = 'public/images/';
 
         //
-        if ($request->hasFile('path')){
-            $album = Album::create(['name'=>$request->name]);
-            foreach ($request->file('path') as $file){
-                $filename = hexdec(uniqid()).'.'.$file->getClientOriginalName();
-                Image::make($file)->resize(640, 427)->save($path.$filename);
-                $inputs['path'] = $path.$filename;
-                $inputs['album_id'] = $album->id;
-                Photo::create($inputs);
-            }
+        if ($file = $request->file('file')){
+            $filename = hexdec(uniqid()).'.'.$file->getClientOriginalName();
+            Image::make($file)->save($path.$filename);
+            $inputs['path'] = $path.$filename;
+            $inputs['album_id'] = $request->album_id;
+            Photo::create($inputs);
 
-            return redirect()->back()->with('success', 'Album Successfully Created.');
+            $notification = array(
+                'message' => 'Photos successfully uploaded.',
+                'alert-type' => 'success'
+            );
+            return redirect()->back()->with($notification);
         }
         else{
-            return redirect()->back()->with('error', 'Make sure to select some pictures.');
+            $notification = array(
+                'message' => 'Photos were not successfully uploaded.',
+                'alert-type' => 'error'
+            );
+            return redirect()->back()->with($notification);
         }
     }
 
@@ -76,7 +68,8 @@ class PhotoController extends Controller
     {
         //
         $album = Album::findOrFail($id);
-        return view('gallery', compact('album'));
+        $photos = Photo::where('album_id', $album->id)->paginate(20);
+        return view('gallery', compact('album', 'photos'));
     }
 
 
@@ -92,52 +85,105 @@ class PhotoController extends Controller
         $photo = Photo::whereId($id)->first();
         unlink($photo->path);
         $photo->delete();
-        return redirect()->back()->with('success', 'Photo deleted successfully');
+        $notification = array(
+            'message' => 'Photo successfully deleted.',
+            'alert-type' => 'success'
+        );
+        return redirect()->back()->with($notification);
     }
 
 
     public function album(){
-        $albums = Album::with('photos')->get();
+        $albums = Album::latest()->paginate(20);
         return view('welcome', compact('albums'));
     }
 
-    public function addPhoto(Request $request){
-        $inputs = array();
-        $path = 'public/images/';
+    public function albumStore(Request $request)
+    {
+        $this->validate($request, [
+            'name' => 'required|unique:albums|min:3|max:50',
+            'cover_image' => 'required'
+        ]);
+
+        $inputs = $request->all();
+        $path = 'public/images/cover/';
 
         //
-        if ($request->hasFile('path')){
-            foreach ($request->file('path') as $file){
-                $filename = hexdec(uniqid()).'.'.$file->getClientOriginalName();
-                Image::make($file)->resize(640, 427)->save($path.$filename);
-                $inputs['path'] = $path.$filename;
-                $inputs['album_id'] = $request->album_id;
-                Photo::create($inputs);
-            }
+        if ($file = $request->file('cover_image')) {
+            $filename = hexdec(uniqid()) . '.' . $file->getClientOriginalName();
+            Image::make($file)->save($path . $filename);
+            $inputs['cover_image'] = $path . $filename;
+            Album::create($inputs);
 
-            return redirect()->back()->with('success', 'Album Successfully Created.');
-        }
-        else{
-            return redirect()->back()->with('error', 'Make sure to select some pictures.');
+            $notification = array(
+                'message' => 'Album successfully created.',
+                'alert-type' => 'success'
+            );
+            return redirect()->back()->with($notification);
         }
     }
 
-    public function albumCover(Request $request){
+    public function albumDelete($id)
+    {
+
+        $album = Album::findOrFail($id);
+        $photos = Photo::where('album_id', $id)->get();
+        if ($album->cover_image){
+            unlink($album->cover_image);
+        }
+        $album->delete();
+        foreach ($photos as $photo){
+            $photo->delete();
+            unlink($photo->path);
+        }
+
+        $notification = array(
+            'message' => 'Album successfully deleted.',
+            'alert-type' => 'success'
+        );
+        return redirect()->back()->with($notification);
+    }
+
+    public function albumEdit(Request $request)
+    {
+        $this->validate($request, [
+            'name' => 'required|min:3|max:50',
+        ]);
+
+        $inputs = $request->except('id');
         $album = Album::findOrFail($request->id);
         $path = 'public/images/cover/';
 
-        if ($request->hasFile('cover_image')){
-            $filename = hexdec(uniqid()).'.'.$request->cover_image->getClientOriginalName();
-            Image::make($request->cover_image)->resize(640, 427)->save($path.$filename);
-            if ($album->cover_image){
-                unlink($album->cover_image);
-            }
-            $album->update(['cover_image'=>$path.$filename]);
-            return redirect()->back()->with('success', 'Cover image updated successfully.');
+        if ($file = $request->file('cover_image')) {
+            unlink($album->cover_image);
+            $filename = hexdec(uniqid()) . '.' . $file->getClientOriginalName();
+            Image::make($file)->save($path . $filename);
+            $inputs['cover_image'] = $path . $filename;
+
+            $album->update($inputs);
+
+            $notification = array(
+                'message' => 'Album successfully updated.',
+                'alert-type' => 'success'
+            );
+            return redirect()->back()->with($notification);
         }
         else{
-            return redirect()->back()->with('error', 'Make sure to select a cover image.');
+            $album->update(['name'=>$request->name]);
+
+            $notification = array(
+                'message' => 'Album successfully updated.',
+                'alert-type' => 'success'
+            );
+            return redirect()->back()->with($notification);
         }
+
+    }
+
+    public function albumShow($id){
+        $album = Album::findOrFail($id);
+        $photos = Photo::where('album_id', $album->id)->paginate(20);
+        return view('show', compact('album', 'photos'));
     }
 
 
